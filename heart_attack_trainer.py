@@ -10,7 +10,7 @@ from typing import NamedTuple, Dict, Text, Any
 
 LABEL_KEY = "Heart Attack Risk"
 
-def transformed_name(key):
+def transformed_key(key):
     """Renaming transformed features"""
     return key + "_xf"
 
@@ -23,7 +23,8 @@ def get_hyperparameters() -> HyperParameters:
     hp = HyperParameters()
     hp.Int('units', min_value=32, max_value=512, step=32, default=128)
     hp.Int('num_layers', min_value=1, max_value=4, step=1, default=3)
-    hp.Float('learning_rate', min_value=1e-4, max_value=1e-1, sampling='LOG', default=1e-3)
+    hp.Float('learning_rate', min_value=1e-4, max_value=1e-1, sampling='LOG', default=1e-2)
+    hp.Float('dropout_rate', min_value=0.0, max_value=0.5, step=0.1, default=0.2)
     return hp
 
 def input_fn(file_pattern, 
@@ -43,28 +44,32 @@ def input_fn(file_pattern,
         features=transform_feature_spec,
         reader=gzip_reader_fn,
         num_epochs=num_epochs,
-        label_key=LABEL_KEY)
+        label_key=transformed_key(LABEL_KEY))
     dataset = dataset.shuffle(buffer_size=10000)
     return dataset
 
 def model_builder(hparams: HyperParameters):
     """Build machine learning model"""
     inputs = {
-        transformed_name('Age'): tf.keras.Input(shape=(1,), name=transformed_name('Age'), dtype=tf.int64),
-        transformed_name('Cholesterol'): tf.keras.Input(shape=(1,), name=transformed_name('Cholesterol'), dtype=tf.int64),
-        transformed_name('Triglycerides'): tf.keras.Input(shape=(1,), name=transformed_name('Triglycerides'), dtype=tf.int64),
-        transformed_name('Income'): tf.keras.Input(shape=(1,), name=transformed_name('Income'), dtype=tf.int64),
-        transformed_name('Heart_Rate'): tf.keras.Input(shape=(1,), name=transformed_name('Heart_Rate'), dtype=tf.int64),
-        transformed_name('Stress_Level'): tf.keras.Input(shape=(1,), name=transformed_name('Stress_Level'), dtype=tf.int64),
-        transformed_name('Physical_Activity_Days_Per_Week'): tf.keras.Input(shape=(1,), name=transformed_name('Physical_Activity_Days_Per_Week'), dtype=tf.int64),
-        transformed_name('Sleep_Hours_Per_Day'): tf.keras.Input(shape=(1,), name=transformed_name('Sleep_Hours_Per_Day'), dtype=tf.int64),
-        'Smoking': tf.keras.Input(shape=(1,), name='Smoking', dtype=tf.int64),
-        'Diabetes': tf.keras.Input(shape=(1,), name='Diabetes', dtype=tf.int64),
-        'Family_History': tf.keras.Input(shape=(1,), name='Family_History', dtype=tf.int64),
-        'Obesity': tf.keras.Input(shape=(1,), name='Obesity', dtype=tf.int64),
-        'Alcohol_Consumption': tf.keras.Input(shape=(1,), name='Alcohol_Consumption', dtype=tf.int64),
-        'Previous_Heart_Problems': tf.keras.Input(shape=(1,), name='Previous_Heart_Problems', dtype=tf.int64),
-        'Medication_Use': tf.keras.Input(shape=(1,), name='Medication_Use', dtype=tf.int64)
+        transformed_key('Cholesterol'): tf.keras.Input(shape=(1,), name=transformed_key('Cholesterol'), dtype=tf.float32), 
+        transformed_key('Sedentary_Hours_Per_Day'): tf.keras.Input(shape=(1,), name=transformed_key('Sedentary_Hours_Per_Day'), dtype=tf.float32),
+        transformed_key('BMI'): tf.keras.Input(shape=(1,), name=transformed_key('BMI'), dtype=tf.float32),
+        transformed_key('Exercise_Hours_Per_Week'): tf.keras.Input(shape=(1,), name=transformed_key('Exercise_Hours_Per_Week'), dtype=tf.float32),
+        transformed_key('Sex'): tf.keras.Input(shape=(1,), name=transformed_key('Sex'), dtype=tf.float32), 
+        'Age': tf.keras.Input(shape=(1,), name='Age', dtype=tf.float32), 
+        'Income': tf.keras.Input(shape=(1,), name='Income', dtype=tf.float32), 
+        'Heart_Rate': tf.keras.Input(shape=(1,), name='Heart_Rate', dtype=tf.float32), 
+        'Smoking': tf.keras.Input(shape=(1,), name='Smoking', dtype=tf.float32), 
+        'Stress_Level': tf.keras.Input(shape=(1,), name='Stress_Level', dtype=tf.float32), 
+        'Triglycerides': tf.keras.Input(shape=(1,), name='Triglycerides', dtype=tf.float32), 
+        'Diabetes': tf.keras.Input(shape=(1,), name='Diabetes', dtype=tf.float32), 
+        'Sleep_Hours_Per_Day': tf.keras.Input(shape=(1,), name='Sleep_Hours_Per_Day', dtype=tf.float32),
+        'Physical_Activity_Days_Per_Week': tf.keras.Input(shape=(1,), name='Physical_Activity_Days_Per_Week', dtype=tf.float32),
+        'Family_History': tf.keras.Input(shape=(1,), name='Family_History', dtype=tf.float32),
+        'Obesity': tf.keras.Input(shape=(1,), name='Obesity', dtype=tf.float32), 
+        'Alcohol_Consumption': tf.keras.Input(shape=(1,), name='Alcohol_Consumption', dtype=tf.float32), 
+        'Previous_Heart_Problems': tf.keras.Input(shape=(1,), name='Previous_Heart_Problems', dtype=tf.float32), 
+        'Medication_Use': tf.keras.Input(shape=(1,), name='Medication_Use', dtype=tf.float32) 
     }
     
     # Combine all inputs into a single tensor
@@ -73,7 +78,7 @@ def model_builder(hparams: HyperParameters):
     x = layers.Dense(hparams.get('units'), activation='relu')(concatenated_inputs)
     for _ in range(hparams.get('num_layers') - 1):
         x = layers.Dense(hparams.get('units') // 2, activation='relu')(x)
-        x = layers.Dropout(0.5)(x)
+        x = layers.Dropout(hparams.get('dropout_rate'))(x)
     x = layers.BatchNormalization()(x)
     outputs = layers.Dense(1, activation='sigmoid')(x)
     
@@ -116,7 +121,7 @@ def tuner_fn(fn_args: FnArgs) -> TunerFnResult:
     tuner = RandomSearch(
         model_builder,
         objective='val_binary_accuracy',
-        max_trials=30,
+        max_trials=20,
         directory=fn_args.working_dir,
         project_name='heart_attack_risk_classification',
         hyperparameters=hp

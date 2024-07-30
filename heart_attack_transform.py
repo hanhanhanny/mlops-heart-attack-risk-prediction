@@ -10,6 +10,7 @@ def transformed_key(key):
     """Renaming transformed features"""
     return key + "_xf"
 
+
 def preprocessing_fn(inputs):
     """
     Preprocess input features into transformed features
@@ -28,26 +29,40 @@ def preprocessing_fn(inputs):
     
     outputs = {}
 
+    # Convert "Female" and "Male" to 1 and 0
+    gender_lookup = tf.lookup.StaticHashTable(
+        initializer=tf.lookup.KeyValueTensorInitializer(
+            keys=tf.constant(['Female', 'Male']),
+            values=tf.constant([1, 0]),
+        ),
+        default_value=tf.constant(-1),
+    )
+    outputs[transformed_key("Sex")] = tf.cast(gender_lookup.lookup(inputs["Sex"]), tf.int64) 
+
     # Standardize numerical features
-    outputs[transformed_key("Age")] = tf.cast(inputs["Age"], tf.int64)
     outputs[transformed_key("Cholesterol")] = tft.scale_to_0_1(inputs["Cholesterol"])
-    outputs[transformed_key("Triglycerides")] = tft.scale_to_0_1(inputs["Triglycerides"])
-    outputs[transformed_key("Income")] = tft.scale_to_0_1(inputs["Income"])
-    outputs[transformed_key("Heart_Rate")] = tft.scale_to_0_1(inputs["Heart Rate"])
-    outputs[transformed_key("Stress_Level")] = tft.scale_to_0_1(inputs["Stress Level"])
-    outputs[transformed_key("Physical_Activity_Days_Per_Week")] = tft.scale_to_0_1(inputs["Physical Activity Days Per Week"])
-    outputs[transformed_key("Sleep_Hours_Per_Day")] = tft.scale_to_0_1(inputs["Sleep Hours Per Day"])
+    outputs[transformed_key("Sedentary_Hours_Per_Day")] = tft.scale_to_0_1(inputs["Sedentary Hours Per Day"])
+    outputs[transformed_key("BMI")] = tft.scale_to_0_1(inputs["BMI"])
+    outputs[transformed_key("Exercise_Hours_Per_Week")] = tft.scale_to_0_1(inputs["Exercise Hours Per Week"])
+
 
     # Binary features (no transformation)
+    outputs["Age"] = inputs["Age"]
+    outputs["Heart_Rate"] = inputs["Heart Rate"]
+    outputs["Triglycerides"] = inputs["Triglycerides"]
+    outputs["Stress_Level"] = inputs["Stress Level"]
+    outputs["Physical_Activity_Days_Per_Week"] = inputs["Physical Activity Days Per Week"]
+    outputs["Sleep_Hours_Per_Day"] = inputs["Sleep Hours Per Day"]
     outputs["Smoking"] = inputs["Smoking"]
     outputs["Diabetes"] = inputs["Diabetes"]
     outputs["Family_History"] = inputs["Family History"]
     outputs["Obesity"] = inputs["Obesity"]
+    outputs["Income"] = inputs["Income"]
     outputs["Alcohol_Consumption"] = inputs["Alcohol Consumption"]
     outputs["Previous_Heart_Problems"] = inputs["Previous Heart Problems"]
     outputs["Medication_Use"] = inputs["Medication Use"]
 
     # Target feature
-    outputs["Heart_Attack_Risk"] = tf.cast(inputs["Heart Attack Risk"], tf.int64)
+    outputs[transformed_key("Heart Attack Risk")] = tf.cast(inputs["Heart Attack Risk"], tf.int64)
 
     return outputs
